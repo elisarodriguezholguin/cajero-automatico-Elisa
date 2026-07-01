@@ -1,8 +1,8 @@
-import { Stack } from "./Stack";
 import { memoize } from "./memoization";
+import { ProcesadorPago } from "./ProcesadorPago";
+import { EventBus } from "./EventBus";
 
 // ===== TIPADO =====
-// Tipos explícitos para modelar el dominio del negocio
 export type TipoTransaccion = "RETIRO" | "DEPOSITO" | "CONSULTA";
 
 export interface Transaccion {
@@ -11,100 +11,92 @@ export interface Transaccion {
   fecha: Date;
 }
 
-// Denominaciones disponibles en el cajero
 const DENOMINACIONES: number[] = [100, 50, 20, 10];
 
 export class Cajero {
   // ===== ENCAPSULAMIENTO =====
-  // Todo el estado interno es privado. Solo se manipula con métodos públicos.
   private saldo: number;
-  private historial: Stack<Transaccion>; // <-- uso del Stack genérico
+  private historial: Transaccion[] = [];
 
   constructor(saldoInicial: number) {
     this.saldo = saldoInicial;
-    this.historial = new Stack<Transaccion>();
+
+    // ===== EVENTO: escucha cuando un pago se completa =====
+    // El cajero se "suscribe" al evento "PagoCompletado"
+    // para registrar automáticamente en el historial
+    EventBus.on("PagoCompletado", (data) => {
+      console.log(`[Evento] PagoCompletado recibido → ${data.tipo} de $${data.monto}`);
+    });
   }
 
   public consultarSaldo(): number {
     return this.saldo;
   }
 
-  // ===== RETIRO usando bucles + Stack para simular dispensado de billetes =====
   public retirar(monto: number): string {
-    if (monto > this.saldo) {
-      return "Fondos insuficientes";
-    }
-    if (monto % 10 !== 0) {
-      return "El monto debe ser múltiplo de 10";
-    }
+    // ===== PASO 3: Reglas de Negocio =====
+    const facturaResult = ProcesadorPago.crearFactura(monto, "RETIRO");
+    if (!facturaResult.ok) return facturaResult.error;
 
-    const billetesADispensar = this.calcularBilletes(monto); // función memoizada
-    const dispensador = new Stack<number>();
+    // ===== PASO 4: Cálculo y Falla =====
+    const procesoResult = ProcesadorPago.procesarFactura(
+      facturaResult.valor,
+      this.saldo
+    );
+    if (!procesoResult.ok) return procesoResult.error;
 
-    // ===== BUCLE 1 =====
-    // Cargamos el stack del dispensador con los billetes calculados
-    for (const denominacion of billetesADispensar) {
-      dispensador.push(denominacion);
-    }
-
-    let detalle = "";
-
-    // ===== BUCLE 2 (while) + uso de Stack como dispensador =====
-    // Vamos "entregando" billetes desde la parte superior del stack
-    while (!dispensador.isEmpty()) {
-      const billete = dispensador.pop();
-      detalle += `Entregando billete de $${billete}\n`;
-    }
+    // ===== MEMOIZACIÓN: calcular billetes =====
+    const billetesADispensar = this.calcularBilletes(monto) as number[];
+    const detalle = billetesADispensar
+      .map((billete: number) => `Entregando billete de $${billete}`)
+      .join("\n");
 
     this.saldo -= monto;
     this.registrarTransaccion("RETIRO", monto);
 
-    return `${detalle}Retiro exitoso. Saldo actual: $${this.saldo}`;
+    return `${detalle}\nRetiro exitoso. Saldo actual: $${this.saldo}`;
   }
 
   public depositar(monto: number): string {
-    if (monto <= 0) return "Monto inválido";
+    // ===== PASO 3: Reglas de Negocio =====
+    const facturaResult = ProcesadorPago.crearFactura(monto, "DEPOSITO");
+    if (!facturaResult.ok) return facturaResult.error;
+
+    // ===== PASO 4: Cálculo y Falla =====
+    const procesoResult = ProcesadorPago.procesarFactura(
+      facturaResult.valor,
+      this.saldo
+    );
+    if (!procesoResult.ok) return procesoResult.error;
+
     this.saldo += monto;
     this.registrarTransaccion("DEPOSITO", monto);
     return `Depósito exitoso. Saldo actual: $${this.saldo}`;
   }
 
-  // ===== SCOPE =====
-  // 'this.calcularBilletes' está memoizado UNA SOLA VEZ aquí (scope de instancia).
-  // Cada vez que se llama con el mismo monto, devuelve el resultado cacheado
-  // en lugar de recalcular con el algoritmo de denominaciones.
+  // ===== SCOPE + MEMOIZACIÓN =====
   private calcularBilletes = memoize((monto: number): number[] => {
-    const resultado: number[] = [];
-    let restante = monto; // <-- variable de SCOPE LOCAL a esta función
-
-    // ===== BUCLE 3 =====
-    // Algoritmo "greedy": recorre las denominaciones de mayor a menor
-    for (const denom of DENOMINACIONES) {
-      while (restante >= denom) {
-        resultado.push(denom);
-        restante -= denom;
-      }
-    }
-    return resultado;
+    let restante = monto;
+    return DENOMINACIONES.flatMap(denom => {
+      const cantidad = Math.floor(restante / denom);
+      restante %= denom;
+      return Array(cantidad).fill(denom);
+    });
   });
 
   private registrarTransaccion(tipo: TipoTransaccion, monto: number): void {
     this.historial.push({ tipo, monto, fecha: new Date() });
   }
 
-  // Deshace la última transacción usando pop() del Stack
   public deshacerUltimaOperacion(): string {
-    if (this.historial.isEmpty()) return "No hay transacciones para deshacer";
-
+    if (this.historial.length === 0) return "No hay transacciones para deshacer";
     const ultima = this.historial.pop() as Transaccion;
-
     if (ultima.tipo === "RETIRO") this.saldo += ultima.monto;
     if (ultima.tipo === "DEPOSITO") this.saldo -= ultima.monto;
-
     return `Se revirtió: ${ultima.tipo} de $${ultima.monto}. Saldo actual: $${this.saldo}`;
   }
 
   public verHistorial(): Transaccion[] {
-    return this.historial.toArray();
+    return [...this.historial];
   }
-}
+} 
