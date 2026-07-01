@@ -3,9 +3,6 @@ import { CargaExtrema } from "./CargaExtrema";
 
 // ===== TIPADO =====
 // Resultado puede ser exitoso o fallido, sin lanzar excepciones
-// Esto es ROP (Railway Oriented Programming): en vez de try/catch,
-// devolvemos un objeto que indica si fue exitoso o no.
-// Es como un semáforo: verde (ok) o rojo (error), nunca explota.
 type Resultado<T> =
   | { ok: true; valor: T }
   | { ok: false; error: string };

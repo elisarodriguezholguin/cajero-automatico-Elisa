@@ -2,9 +2,16 @@ import { memoize } from "./memoization";
 import { ProcesadorPago } from "./ProcesadorPago";
 import { EventBus } from "./EventBus";
 
-// ===== TIPADO =====
-export type TipoTransaccion = "RETIRO" | "DEPOSITO" | "CONSULTA";
+// ===== ENUM =====
+// Más profesional que el tipo unión literal.
+// Agrupa valores relacionados bajo un mismo nombre.
+export enum TipoTransaccion {
+  RETIRO = "RETIRO",
+  DEPOSITO = "DEPOSITO",
+  CONSULTA = "CONSULTA"
+}
 
+// ===== TIPADO =====
 export interface Transaccion {
   tipo: TipoTransaccion;
   monto: number;
@@ -21,9 +28,7 @@ export class Cajero {
   constructor(saldoInicial: number) {
     this.saldo = saldoInicial;
 
-    // ===== EVENTO: escucha cuando un pago se completa =====
-    // El cajero se "suscribe" al evento "PagoCompletado"
-    // para registrar automáticamente en el historial
+    // ===== EVENTO =====
     EventBus.on("PagoCompletado", (data) => {
       console.log(`[Evento] PagoCompletado recibido → ${data.tipo} de $${data.monto}`);
     });
@@ -35,14 +40,11 @@ export class Cajero {
 
   public retirar(monto: number): string {
     // ===== PASO 3: Reglas de Negocio =====
-    const facturaResult = ProcesadorPago.crearFactura(monto, "RETIRO");
+    const facturaResult = ProcesadorPago.crearFactura(monto, TipoTransaccion.RETIRO);
     if (!facturaResult.ok) return facturaResult.error;
 
     // ===== PASO 4: Cálculo y Falla =====
-    const procesoResult = ProcesadorPago.procesarFactura(
-      facturaResult.valor,
-      this.saldo
-    );
+    const procesoResult = ProcesadorPago.procesarFactura(facturaResult.valor, this.saldo);
     if (!procesoResult.ok) return procesoResult.error;
 
     // ===== MEMOIZACIÓN: calcular billetes =====
@@ -52,25 +54,21 @@ export class Cajero {
       .join("\n");
 
     this.saldo -= monto;
-    this.registrarTransaccion("RETIRO", monto);
-
+    this.registrarTransaccion(TipoTransaccion.RETIRO, monto);
     return `${detalle}\nRetiro exitoso. Saldo actual: $${this.saldo}`;
   }
 
   public depositar(monto: number): string {
     // ===== PASO 3: Reglas de Negocio =====
-    const facturaResult = ProcesadorPago.crearFactura(monto, "DEPOSITO");
+    const facturaResult = ProcesadorPago.crearFactura(monto, TipoTransaccion.DEPOSITO);
     if (!facturaResult.ok) return facturaResult.error;
 
     // ===== PASO 4: Cálculo y Falla =====
-    const procesoResult = ProcesadorPago.procesarFactura(
-      facturaResult.valor,
-      this.saldo
-    );
+    const procesoResult = ProcesadorPago.procesarFactura(facturaResult.valor, this.saldo);
     if (!procesoResult.ok) return procesoResult.error;
 
     this.saldo += monto;
-    this.registrarTransaccion("DEPOSITO", monto);
+    this.registrarTransaccion(TipoTransaccion.DEPOSITO, monto);
     return `Depósito exitoso. Saldo actual: $${this.saldo}`;
   }
 
@@ -91,12 +89,12 @@ export class Cajero {
   public deshacerUltimaOperacion(): string {
     if (this.historial.length === 0) return "No hay transacciones para deshacer";
     const ultima = this.historial.pop() as Transaccion;
-    if (ultima.tipo === "RETIRO") this.saldo += ultima.monto;
-    if (ultima.tipo === "DEPOSITO") this.saldo -= ultima.monto;
+    if (ultima.tipo === TipoTransaccion.RETIRO) this.saldo += ultima.monto;
+    if (ultima.tipo === TipoTransaccion.DEPOSITO) this.saldo -= ultima.monto;
     return `Se revirtió: ${ultima.tipo} de $${ultima.monto}. Saldo actual: $${this.saldo}`;
   }
 
   public verHistorial(): Transaccion[] {
     return [...this.historial];
   }
-} 
+}
