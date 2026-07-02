@@ -8,19 +8,25 @@
 type Listener = (data: any) => void;
 
 export class EventBus {
+  //Un escuchador
   private static eventos: Map<string, Listener[]> = new Map();
 
   // Registrar un "escuchador" para un evento
   static on(evento: string, listener: Listener): void {
     if (!this.eventos.has(evento)) {
+  // Registra funciones que quieran escuchar un evento y si no existe lo crea.
       this.eventos.set(evento, []);
     }
+    ///Lo agreega 
     this.eventos.get(evento)!.push(listener);
   }
 
   // Emitir un evento con datos
+  //dispara el evento para todos los que estan escuchando.
   static emit(evento: string, data: any): void {
+   // captura listeners 
     const listeners = this.eventos.get(evento) ?? [];
+    // Ejecuta cada evento listener
     listeners.forEach(listener => listener(data));
   }
 }
