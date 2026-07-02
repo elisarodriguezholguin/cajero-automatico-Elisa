@@ -1,6 +1,6 @@
 // ===== CARGA EXTREMA =====
 // Controla que no se procesen demasiadas operaciones al mismo tiempo.
-// Si llegan más peticiones de las permitidas, las rechaza con un mensaje
+// Si llegan más peticiones de las que son permitidas, las rechaza con un mensaje
 // de error en vez de colapsar el sistema.
 // Es como una fila de banco: solo entran X personas a la vez,
 // las demás esperan o son rechazadas si la fila está llena.

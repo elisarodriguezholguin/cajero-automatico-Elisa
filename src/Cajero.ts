@@ -3,8 +3,7 @@ import { ProcesadorPago } from "./ProcesadorPago";
 import { EventBus } from "./EventBus";
 
 // ===== ENUM =====
-// Más profesional que el tipo unión literal.
-// Agrupa valores relacionados bajo un mismo nombre.
+
 export enum TipoTransaccion {
   RETIRO = "RETIRO",
   DEPOSITO = "DEPOSITO",
